@@ -5,6 +5,7 @@
 //  Created by Rob Amos on 12/4/20.
 //
 
+import Combine
 import Foundation
 import tree_sitter
 
@@ -80,6 +81,7 @@ public class Parser {
 
     /// Use the parser to parse a source code string
     ///
+    /// - Important: This call is **synchronous**. See the Combine-based version for asychronous parsing
     ///
     /// If you have already parsed an earlier version of this document and the
     /// document has since been edited, pass the previous syntax tree so that the
@@ -100,6 +102,40 @@ public class Parser {
 
         guard let tree = ts_parser_parse_string_encoding(self.rawValue, oldTree?.rawValue, string, UInt32(string.count), encoding.rawValue) else { return nil }
         return Tree(rawValue: tree)
+    }
+
+    /// Use the parser to parse a source code string
+    ///
+    /// - Important: This call is **asynchronous** and happens on a background thread.
+    /// The tree that will eventually be returned is safe for use on a new thread, and it is up to the caller
+    /// to ensure it is received on the appropriate thread.
+    ///
+    /// If you have already parsed an earlier version of this document and the
+    /// document has since been edited, pass the previous syntax tree so that the
+    /// unchanged parts of it can be reused. This will save time and memory.
+    /// For this to work correctly, you must have already edited the old syntax tree
+    /// using the `Tree.edit` function in a way that exactly matches the source code changes.
+    ///
+    /// - Parameters:
+    ///   - string:     A source code string
+    ///   - encoding:   An optional string encoding. Defaults to .utf8.
+    ///   - oldTree:    An existing tree that you've edited. This can save time and memory in re-parsing.
+    ///                 If you're parsing a new tree omit this or set to `nil`.
+    ///
+    public func parse (string: String, encoding: InputEncoding = .utf8, oldTree: Tree? = nil) -> AnyPublisher<Tree?, Swift.Error> {
+        return Deferred {
+            Future { [unowned self] promise in
+                guard self.language != nil else {
+                    promise(.failure(Error.noLanguage))
+                    return
+                }
+
+                let tree = ts_parser_parse_string_encoding(self.rawValue, oldTree?.rawValue, string, UInt32(string.count), encoding.rawValue)
+                promise(.success(tree.flatMap(Tree.init(rawValue:))))
+            }
+        }
+            .subscribe(on: DispatchQueue(label: "com.unsignedapps.tree-sitter.parse-queue"))
+            .eraseToAnyPublisher()
     }
 
     /// Instruct the parser to start the next parse from the beginning.

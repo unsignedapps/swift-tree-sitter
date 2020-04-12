@@ -5,11 +5,17 @@ import PackageDescription
 
 let package = Package(
     name: "TreeSitter",
+    platforms: [
+        .iOS(.v13),
+        .macOS(.v10_15)
+    ],
+
     products: [
         .library(name: "TreeSitter", targets: [ "TreeSitter" ]),
     ],
-    dependencies: [
-    ],
+
+    dependencies: [],
+
     targets: [
         // Our Public Swift wrapper that lives in Sources/TreeSitter
         .target(name: "TreeSitter", dependencies: [ "tree_sitter" ]),
