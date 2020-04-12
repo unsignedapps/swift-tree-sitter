@@ -2,6 +2,9 @@ log*.html
 
 .idea
 *.xcodeproj
+.build
+.swiftpm
+.DS_Store
 
 fuzz-results
 
