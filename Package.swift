@@ -4,13 +4,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "swift-tree-sitter",
+    name: "TreeSitter",
     products: [
-        .library(name: "swift-tree-sitter", targets: [ "tree_sitter" ]),
+        .library(name: "TreeSitter", targets: [ "TreeSitter" ]),
     ],
     dependencies: [
     ],
     targets: [
+        // Our Public Swift wrapper that lives in Sources/TreeSitter
+        .target(name: "TreeSitter", dependencies: [ "tree_sitter" ]),
+
+        // The original C tree-sitter library that lives in ./lib
         .target (
             name: "tree_sitter",
             path: "lib",
