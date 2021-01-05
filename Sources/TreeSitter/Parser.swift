@@ -5,9 +5,13 @@
 //  Created by Rob Amos on 12/4/20.
 //
 
-import Combine
 import Foundation
 import tree_sitter
+
+#if canImport(Combine)
+import Combine
+#endif
+
 
 public class Parser {
 
@@ -97,10 +101,12 @@ public class Parser {
     ///
     /// - Returns:      A parsed `Tree`, or nil if parsing was cancelled (see `Parser.isCancelled`) or timed out.
     ///
-    public func parse (string: String, encoding: InputEncoding = .utf8, oldTree: Tree? = nil) throws -> Tree? {
+    public func parseSync (string: String, encoding: InputEncoding = .utf8, oldTree: Tree? = nil) throws -> Tree {
         guard self.language != nil else { throw Error.noLanguage }
 
-        guard let tree = ts_parser_parse_string_encoding(self.rawValue, oldTree?.rawValue, string, UInt32(string.count), encoding.rawValue) else { return nil }
+        guard let tree = ts_parser_parse_string_encoding(self.rawValue, oldTree?.rawValue, string, UInt32(string.count), encoding.rawValue) else {
+            throw self.isCancelled ? Error.cancelled : Error.timedout
+        }
         return Tree(rawValue: tree)
     }
 
@@ -122,7 +128,8 @@ public class Parser {
     ///   - oldTree:    An existing tree that you've edited. This can save time and memory in re-parsing.
     ///                 If you're parsing a new tree omit this or set to `nil`.
     ///
-    public func parse (string: String, encoding: InputEncoding = .utf8, oldTree: Tree? = nil) -> AnyPublisher<Tree?, Swift.Error> {
+    @available(iOS 13.0, macOS 10.15.0, tvOS 13.0, watchOS 6.0, *)
+    public func parse (string: String, encoding: InputEncoding = .utf8, oldTree: Tree? = nil) -> AnyPublisher<Tree, Swift.Error> {
         return Deferred {
             Future { [unowned self] promise in
                 guard self.language != nil else {
@@ -130,8 +137,11 @@ public class Parser {
                     return
                 }
 
-                let tree = ts_parser_parse_string_encoding(self.rawValue, oldTree?.rawValue, string, UInt32(string.count), encoding.rawValue)
-                promise(.success(tree.flatMap(Tree.init(rawValue:))))
+                guard let tree = ts_parser_parse_string_encoding(self.rawValue, oldTree?.rawValue, string, UInt32(string.count), encoding.rawValue) else {
+                    promise(.failure(self.isCancelled ? Error.cancelled : Error.timedout))
+                    return
+                }
+                promise(.success(Tree(rawValue: ts_tree_copy(tree))))
             }
         }
             .subscribe(on: DispatchQueue(label: "com.unsignedapps.tree-sitter.parse-queue"))
@@ -181,5 +191,6 @@ extension Parser {
         case noLanguage
         case languageVersionMismatch (Language)
         case timedout
+        case cancelled
     }
 }

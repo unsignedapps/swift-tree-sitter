@@ -20,6 +20,10 @@ public struct Range {
         self.rawValue = rawValue
     }
 
+    public init (startPoint: Point, endPoint: Point, startByte: UInt32, endByte: UInt32) {
+        self.rawValue = TSRange(start_point: startPoint.rawValue, end_point: endPoint.rawValue, start_byte: startByte, end_byte: endByte)
+    }
+
 
     // MARK: - Wrapped Properties
 
@@ -33,12 +37,12 @@ public struct Range {
         set { self.rawValue.end_point = newValue.rawValue }
     }
 
-    public var startBytes: UInt32 {
+    public var startByte: UInt32 {
         get { self.rawValue.start_byte }
         set { self.rawValue.start_byte = newValue }
     }
 
-    public var endBytes: UInt32 {
+    public var endByte: UInt32 {
         get { self.rawValue.end_byte }
         set { self.rawValue.end_byte = newValue }
     }

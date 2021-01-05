@@ -20,6 +20,10 @@ public struct Point {
         self.rawValue = rawValue
     }
 
+    public init (row: UInt32, column: UInt32) {
+        self.rawValue = TSPoint(row: row, column: column)
+    }
+
 
     // MARK: - Wrapped Properties
 
@@ -46,5 +50,14 @@ extension Point: Equatable, Comparable {
     /// From point.h
     public static func < (lhs: Point, rhs: Point) -> Bool {
         return (lhs.row < rhs.row) || (lhs.row == rhs.row && lhs.column < rhs.column);
+    }
+}
+
+
+// MARK: - Debugging
+
+extension Point: CustomDebugStringConvertible {
+    public var debugDescription: String {
+        return "(\(self.row), \(self.column))"
     }
 }

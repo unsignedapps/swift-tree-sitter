@@ -37,21 +37,20 @@ public class Tree {
     // MARK: - Nodes and Languages
 
     ///  The root node of the syntax tree
-    var rootNode: Node {
+    public var rootNode: Node {
         return Node(rawValue: ts_tree_root_node(self.rawValue))
     }
 
     /// The language that was used to parse the syntax tree
-    var language: Language {
+    public var language: Language {
         return Language(rawValue: ts_tree_language(self.rawValue))
     }
 
 
     // MARK: - Editing Trees
 
-    public func edit (_ edit: Edit) {
-        var rawValue = edit.rawValue
-        ts_tree_edit(self.rawValue, &rawValue)
+    public func edit (_ edit: inout Edit) {
+        ts_tree_edit(self.rawValue, &edit.rawValue)
     }
 
     /// Compare an old edited syntax tree to a new syntax tree representing the same

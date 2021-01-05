@@ -16,7 +16,10 @@ public struct Language {
 
     // MARK: - Initialisation
 
-    internal init (rawValue: UnsafePointer<TSLanguage>) {
+    /// You shouldn't ever directly need to initialise `Language`, but
+    /// just in case you're pulling in your own library definitions, this is here.
+    ///
+    public init (rawValue: UnsafePointer<TSLanguage>) {
         self.rawValue = rawValue
     }
 
@@ -33,5 +36,14 @@ public struct Language {
 
     public var version: UInt32 {
         return ts_language_version(self.rawValue)
+    }
+}
+
+
+// MARK: - Equatable Conformance
+
+extension Language: Equatable {
+    public static func == (lhs: Language, rhs: Language) -> Bool {
+        return lhs.rawValue == rhs.rawValue
     }
 }

@@ -64,6 +64,24 @@ extension Tree {
         }
 
 
+        // MARK: - Retrieving the next node
+
+        /// Moves the cursor to the parent and returns the node if it exists
+        public func parent () -> Node? {
+            return self.gotoParent() ? self.current : nil
+        }
+
+        /// Moves the cursor to the next sibling and returns the node if it exists
+        public func nextSibling () -> Node? {
+            return self.gotoNextSibling() ? self.current : nil
+        }
+
+        /// Moves the cursor to the first child and returns the node if it exists
+        public func firstChild () -> Node? {
+            return self.gotoFirstChild() ? self.current : nil
+        }
+
+
         // MARK: - Current Node
 
         /// The tree cursor's current node. You can also move it by supplying

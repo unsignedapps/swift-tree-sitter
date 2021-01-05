@@ -19,7 +19,7 @@ public struct Edit {
     public var oldEndPoint: Point
     public var newEndPoint: Point
 
-    internal var rawValue: TSInputEdit {
+    internal lazy var rawValue: TSInputEdit = {
         return TSInputEdit (
             start_byte: self.startByte,
             old_end_byte: self.oldEndByte,
@@ -28,7 +28,7 @@ public struct Edit {
             old_end_point: self.oldEndPoint.rawValue,
             new_end_point: self.newEndPoint.rawValue
         )
-    }
+    }()
 
 
     // MARK: - Initialisation

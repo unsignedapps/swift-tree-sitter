@@ -38,6 +38,10 @@ public struct Node {
     public var symbol: Symbol {
         return Symbol(rawValue: ts_node_symbol(self.rawValue))
     }
+    
+    public var name: String? {
+        return self.symbol.name(in: self.tree.language)
+    }
 
     /// The receiver's type name.
     public var type: String {
@@ -65,6 +69,11 @@ public struct Node {
     /// The `Point` where the node ends
     public var endPoint: Point {
         return Point(rawValue: ts_node_end_point(self.rawValue))
+    }
+
+    /// The `Range` of the node
+    public var range: Range {
+        return Range(startPoint: self.startPoint, endPoint: self.endPoint, startByte: self.startByte, endByte: self.endByte)
     }
 
 
@@ -206,9 +215,8 @@ public struct Node {
     /// afterward will already reflect the edit. You only need to use `Node.edit`
     /// when you have a `Node` instance that you want to keep and continue to use
     /// after an edit.
-    public mutating func edit (_ edit: Edit) {
-        var rawValue = edit.rawValue
-        ts_node_edit(&self.rawValue, &rawValue)
+    public mutating func edit (_ edit: inout Edit) {
+        ts_node_edit(&self.rawValue, &edit.rawValue)
     }
 }
 
@@ -222,7 +230,7 @@ extension Node: Equatable {
 }
 
 
-public struct NodeCollection: Collection, BidirectionalCollection {
+public struct NodeCollection: Sequence, IteratorProtocol {
 
     public typealias Element = Node
 
@@ -233,7 +241,20 @@ public struct NodeCollection: Collection, BidirectionalCollection {
 
     public var startIndex = 0
     public var endIndex: Int
-
+    
+    private var currentIndex: Int?
+        
+    public mutating func next() -> Node? {
+        guard let currentIndex = self.currentIndex else{
+            self.currentIndex = self.startIndex
+            return self[self.startIndex]
+        }
+        guard currentIndex < self.endIndex else { return nil }
+        let next = self.index(after: currentIndex)
+        self.currentIndex = next
+        return self[next]
+    }
+    
     internal init (parent: Node, namedOnly: Bool) {
         self.parent = parent
         self.namedOnly = namedOnly
@@ -244,14 +265,15 @@ public struct NodeCollection: Collection, BidirectionalCollection {
 
     public subscript(position: Int) -> Node {
         let next = self.namedOnly ? ts_node_named_child(self.parent.rawValue, UInt32(position)) : ts_node_child(self.parent.rawValue, UInt32(position))
+        print("Position: \(position)")
         return Node(rawValue: next)
     }
 
     public func index(after i: Int) -> Int {
-        return i + 1
+        return Swift.min(i + 1, self.endIndex)
     }
 
     public func index(before i: Int) -> Int {
-        return i - 1
+        return Swift.max(i - 1, self.startIndex)
     }
 }
