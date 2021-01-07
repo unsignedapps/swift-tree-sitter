@@ -230,7 +230,7 @@ extension Node: Equatable {
 }
 
 
-public struct NodeCollection: Sequence, IteratorProtocol {
+public struct NodeCollection: Sequence, IteratorProtocol, Collection, RandomAccessCollection {
 
     public typealias Element = Node
 
