@@ -265,7 +265,6 @@ public struct NodeCollection: Sequence, IteratorProtocol {
 
     public subscript(position: Int) -> Node {
         let next = self.namedOnly ? ts_node_named_child(self.parent.rawValue, UInt32(position)) : ts_node_child(self.parent.rawValue, UInt32(position))
-        print("Position: \(position)")
         return Node(rawValue: next)
     }
 
