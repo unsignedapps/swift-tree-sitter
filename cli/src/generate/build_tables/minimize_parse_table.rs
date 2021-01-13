@@ -68,6 +68,7 @@ impl<'a> Minimizer<'a> {
                             ..
                         } => {
                             if !self.simple_aliases.contains_key(&symbol)
+                                && !self.syntax_grammar.supertype_symbols.contains(&symbol)
                                 && !aliased_symbols.contains(&symbol)
                                 && self.syntax_grammar.variables[symbol.index].kind
                                     != VariableType::Named
@@ -199,6 +200,9 @@ impl<'a> Minimizer<'a> {
         right_state: &ParseState,
         group_ids_by_state_id: &Vec<ParseStateId>,
     ) -> bool {
+        if left_state.is_non_terminal_extra != right_state.is_non_terminal_extra {
+            return true;
+        }
         for (token, left_entry) in &left_state.terminal_entries {
             if let Some(right_entry) = right_state.terminal_entries.get(token) {
                 if self.entries_conflict(

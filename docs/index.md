@@ -34,6 +34,7 @@ Parsers for these languages are fairly complete:
 * [Elm](https://github.com/razzeee/tree-sitter-elm)
 * [Eno](https://github.com/eno-lang/tree-sitter-eno)
 * [ERB / EJS](https://github.com/tree-sitter/tree-sitter-embedded-template)
+- [Fennel](https://github.com/travonted/tree-sitter-fennel)
 * [Go](https://github.com/tree-sitter/tree-sitter-go)
 * [HTML](https://github.com/tree-sitter/tree-sitter-html)
 * [Java](https://github.com/tree-sitter/tree-sitter-java)
@@ -45,12 +46,15 @@ Parsers for these languages are fairly complete:
 * [Python](https://github.com/tree-sitter/tree-sitter-python)
 * [Ruby](https://github.com/tree-sitter/tree-sitter-ruby)
 * [Rust](https://github.com/tree-sitter/tree-sitter-rust)
+* [R](https://github.com/r-lib/tree-sitter-r)
 * [SystemRDL](https://github.com/SystemRDL/tree-sitter-systemrdl)
 * [TOML](https://github.com/ikatyang/tree-sitter-toml)
 * [TypeScript](https://github.com/tree-sitter/tree-sitter-typescript)
 * [Verilog](https://github.com/tree-sitter/tree-sitter-verilog)
+* [VHDL](https://github.com/alemuller/tree-sitter-vhdl)
 * [Vue](https://github.com/ikatyang/tree-sitter-vue)
 * [YAML](https://github.com/ikatyang/tree-sitter-yaml)
+* [WASM](https://github.com/wasm-lsp/tree-sitter-wasm)
 
 Parsers for these languages are in development:
 
@@ -59,6 +63,7 @@ Parsers for these languages are in development:
 * [Julia](https://github.com/tree-sitter/tree-sitter-julia)
 * [Nix](https://github.com/cstrahan/tree-sitter-nix)
 * [Scala](https://github.com/tree-sitter/tree-sitter-scala)
+* [SPARQL](https://github.com/BonaBeavis/tree-sitter-sparql)
 * [Swift](https://github.com/tree-sitter/tree-sitter-swift)
 
 ### Talks on Tree-sitter

@@ -2,9 +2,9 @@ use super::error::{Error, Result};
 use super::util;
 use std::io::{self, Write};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
 use std::time::Instant;
-use std::{fs, thread, usize};
+use std::{fmt, fs, usize};
 use tree_sitter::{InputEdit, Language, LogType, Parser, Point, Tree};
 
 #[derive(Debug)]
@@ -12,6 +12,22 @@ pub struct Edit {
     pub position: usize,
     pub deleted_length: usize,
     pub inserted_text: Vec<u8>,
+}
+
+#[derive(Debug, Default)]
+pub struct Stats {
+    pub successful_parses: usize,
+    pub total_parses: usize,
+}
+
+impl fmt::Display for Stats {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        return writeln!(f, "Total parses: {}; successful parses: {}; failed parses: {}; success percentage: {:.2}%",
+                 self.total_parses,
+                 self.successful_parses,
+                 self.total_parses - self.successful_parses,
+                 (self.successful_parses as f64) / (self.total_parses as f64) * 100.0);
+    }
 }
 
 pub fn parse_file_at_path(
@@ -24,7 +40,8 @@ pub fn parse_file_at_path(
     timeout: u64,
     debug: bool,
     debug_graph: bool,
-    allow_cancellation: bool,
+    debug_xml: bool,
+    cancellation_flag: Option<&AtomicUsize>,
 ) -> Result<bool> {
     let mut _log_session = None;
     let mut parser = Parser::new();
@@ -35,16 +52,7 @@ pub fn parse_file_at_path(
 
     // If the `--cancel` flag was passed, then cancel the parse
     // when the user types a newline.
-    if allow_cancellation {
-        let flag = Box::new(AtomicUsize::new(0));
-        unsafe { parser.set_cancellation_flag(Some(&flag)) };
-        thread::spawn(move || {
-            let mut line = String::new();
-            io::stdin().read_line(&mut line).unwrap();
-            eprintln!("Cancelling");
-            flag.store(1, Ordering::Relaxed);
-        });
-    }
+    unsafe { parser.set_cancellation_flag(cancellation_flag) };
 
     // Set a timeout based on the `--time` flag.
     parser.set_timeout_micros(timeout);
@@ -70,10 +78,18 @@ pub fn parse_file_at_path(
     let mut stdout = stdout.lock();
 
     if let Some(mut tree) = tree {
-        for edit in edits {
+        if debug_graph && !edits.is_empty() {
+            println!("BEFORE:\n{}", String::from_utf8_lossy(&source_code));
+        }
+
+        for (i, edit) in edits.iter().enumerate() {
             let edit = parse_edit_flag(&source_code, edit)?;
             perform_edit(&mut tree, &mut source_code, &edit);
             tree = parser.parse(&source_code, Some(&tree)).unwrap();
+
+            if debug_graph {
+                println!("AFTER {}:\n{}", i, String::from_utf8_lossy(&source_code));
+            }
         }
 
         let duration = time.elapsed();
@@ -129,6 +145,60 @@ pub fn parse_file_at_path(
                         indent_level += 1;
                     } else {
                         did_visit_children = true;
+                    }
+                }
+            }
+            cursor.reset(tree.root_node());
+            println!("");
+        }
+
+        if debug_xml {
+            let mut needs_newline = false;
+            let mut indent_level = 0;
+            let mut did_visit_children = false;
+            let mut tags: Vec<&str> = Vec::new();
+            loop {
+                let node = cursor.node();
+                let is_named = node.is_named();
+                if did_visit_children {
+                    if is_named {
+                        let tag = tags.pop();
+                        write!(&mut stdout, "</{}>\n", tag.expect("there is a tag"))?;
+                        needs_newline = true;
+                    }
+                    if cursor.goto_next_sibling() {
+                        did_visit_children = false;
+                    } else if cursor.goto_parent() {
+                        did_visit_children = true;
+                        indent_level -= 1;
+                    } else {
+                        break;
+                    }
+                } else {
+                    if is_named {
+                        if needs_newline {
+                            stdout.write(b"\n")?;
+                        }
+                        for _ in 0..indent_level {
+                            stdout.write(b"  ")?;
+                        }
+                        write!(&mut stdout, "<{}", node.kind())?;
+                        if let Some(field_name) = cursor.field_name() {
+                            write!(&mut stdout, " type=\"{}\"", field_name)?;
+                        }
+                        write!(&mut stdout, ">")?;
+                        tags.push(node.kind());
+                        needs_newline = true;
+                    }
+                    if cursor.goto_first_child() {
+                        did_visit_children = false;
+                        indent_level += 1;
+                    } else {
+                        did_visit_children = true;
+                        let start = node.start_byte();
+                        let end = node.end_byte();
+                        let value = std::str::from_utf8(&source_code[start..end]).expect("has a string");
+                        write!(&mut stdout, "{}", html_escape::encode_text(value))?;
                     }
                 }
             }

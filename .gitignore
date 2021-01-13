@@ -18,6 +18,7 @@ docs/assets/js/tree-sitter.js
 /target
 *.rs.bk
 *.a
+*.dylib
 *.o
 *.obj
 *.exp

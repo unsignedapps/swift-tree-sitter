@@ -1,7 +1,7 @@
 [package]
 name = "tree-sitter"
 description = "Rust bindings to the Tree-sitter parsing library"
-version = "0.6.3"
+version = "0.17.1"
 authors = ["Max Brunsfeld <maxbrunsfeld@gmail.com>"]
 license = "MIT"
 readme = "binding_rust/README.md"
@@ -15,14 +15,16 @@ include = [
   "/binding_rust/*",
   "/Cargo.toml",
   "/include/*",
-  "/src/*",
+  "/src/*.h",
+  "/src/*.c",
+  "/src/unicode/*",
 ]
 
 [dependencies]
 regex = "1"
 
 [build-dependencies]
-cc = "1.0"
+cc = "^1.0.58"
 
 [lib]
 path = "binding_rust/lib.rs"

@@ -5,14 +5,15 @@ use regex::{Regex, RegexBuilder};
 use serde_derive::Deserialize;
 use std::collections::HashMap;
 use std::io::BufReader;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use std::{fs, mem};
-use tree_sitter::Language;
+use tree_sitter::{Language, QueryError};
 use tree_sitter_highlight::HighlightConfiguration;
-use tree_sitter_tags::TagsConfiguration;
+use tree_sitter_tags::{Error as TagsError, TagsConfiguration};
 
 #[cfg(unix)]
 const DYLIB_EXTENSION: &'static str = "so";
@@ -160,7 +161,9 @@ impl Loader {
                 // If multiple language configurations match, then determine which
                 // one to use by applying the configurations' content regexes.
                 else {
-                    let file_contents = fs::read_to_string(path)?;
+                    let file_contents = fs::read(path)
+                        .map_err(Error::wrap(|| format!("Failed to read path {:?}", path)))?;
+                    let file_contents = String::from_utf8_lossy(&file_contents);
                     let mut best_score = -2isize;
                     let mut best_configuration_id = None;
                     for configuration_id in configuration_ids {
@@ -541,13 +544,15 @@ impl Loader {
 
 impl<'a> LanguageConfiguration<'a> {
     pub fn highlight_config(&self, language: Language) -> Result<Option<&HighlightConfiguration>> {
-        self.highlight_config
+        return self
+            .highlight_config
             .get_or_try_init(|| {
-                let highlights_query =
+                let (highlights_query, highlight_ranges) =
                     self.read_queries(&self.highlights_filenames, "highlights.scm")?;
-                let injections_query =
+                let (injections_query, injection_ranges) =
                     self.read_queries(&self.injections_filenames, "injections.scm")?;
-                let locals_query = self.read_queries(&self.locals_filenames, "locals.scm")?;
+                let (locals_query, locals_ranges) =
+                    self.read_queries(&self.locals_filenames, "locals.scm")?;
 
                 if highlights_query.is_empty() {
                     Ok(None)
@@ -558,9 +563,30 @@ impl<'a> LanguageConfiguration<'a> {
                         &injections_query,
                         &locals_query,
                     )
-                    .map_err(Error::wrap(|| {
-                        format!("Failed to load queries in {:?}", self.root_path)
-                    }))?;
+                    .map_err(|error| {
+                        if error.offset < injections_query.len() {
+                            Self::include_path_in_query_error(
+                                error,
+                                &injection_ranges,
+                                &injections_query,
+                                0,
+                            )
+                        } else if error.offset < injections_query.len() + locals_query.len() {
+                            Self::include_path_in_query_error(
+                                error,
+                                &locals_ranges,
+                                &locals_query,
+                                injections_query.len(),
+                            )
+                        } else {
+                            Self::include_path_in_query_error(
+                                error,
+                                &highlight_ranges,
+                                &highlights_query,
+                                injections_query.len() + locals_query.len(),
+                            )
+                        }
+                    })?;
                     let mut all_highlight_names = self.highlight_names.lock().unwrap();
                     if self.use_all_highlight_names {
                         for capture_name in result.query.capture_names() {
@@ -573,48 +599,95 @@ impl<'a> LanguageConfiguration<'a> {
                     Ok(Some(result))
                 }
             })
-            .map(Option::as_ref)
+            .map(Option::as_ref);
     }
 
     pub fn tags_config(&self, language: Language) -> Result<Option<&TagsConfiguration>> {
         self.tags_config
             .get_or_try_init(|| {
-                let tags_query = self.read_queries(&self.tags_filenames, "tags.scm")?;
-                let locals_query = self.read_queries(&self.locals_filenames, "locals.scm")?;
+                let (tags_query, tags_ranges) =
+                    self.read_queries(&self.tags_filenames, "tags.scm")?;
+                let (locals_query, locals_ranges) =
+                    self.read_queries(&self.locals_filenames, "locals.scm")?;
                 if tags_query.is_empty() {
                     Ok(None)
                 } else {
                     TagsConfiguration::new(language, &tags_query, &locals_query)
-                        .map_err(Error::wrap(|| {
-                            format!("Failed to load queries in {:?}", self.root_path)
-                        }))
-                        .map(|config| Some(config))
+                        .map(Some)
+                        .map_err(|error| {
+                            if let TagsError::Query(error) = error {
+                                if error.offset < locals_query.len() {
+                                    Self::include_path_in_query_error(
+                                        error,
+                                        &locals_ranges,
+                                        &locals_query,
+                                        0,
+                                    )
+                                } else {
+                                    Self::include_path_in_query_error(
+                                        error,
+                                        &tags_ranges,
+                                        &tags_query,
+                                        locals_query.len(),
+                                    )
+                                }
+                                .into()
+                            } else {
+                                error.into()
+                            }
+                        })
                 }
             })
             .map(Option::as_ref)
     }
 
-    fn read_queries(&self, paths: &Option<Vec<String>>, default_path: &str) -> Result<String> {
+    fn include_path_in_query_error<'b>(
+        mut error: QueryError,
+        ranges: &'b Vec<(String, Range<usize>)>,
+        source: &str,
+        start_offset: usize,
+    ) -> (&'b str, QueryError) {
+        let offset_within_section = error.offset - start_offset;
+        let (path, range) = ranges
+            .iter()
+            .find(|(_, range)| range.contains(&offset_within_section))
+            .unwrap();
+        error.offset = offset_within_section - range.start;
+        error.row = source[range.start..offset_within_section]
+            .chars()
+            .filter(|c| *c == '\n')
+            .count();
+        (path.as_ref(), error)
+    }
+
+    fn read_queries(
+        &self,
+        paths: &Option<Vec<String>>,
+        default_path: &str,
+    ) -> Result<(String, Vec<(String, Range<usize>)>)> {
+        let mut query = String::new();
+        let mut path_ranges = Vec::new();
         if let Some(paths) = paths.as_ref() {
-            let mut query = String::new();
             for path in paths {
-                let path = self.root_path.join(path);
-                query += &fs::read_to_string(&path).map_err(Error::wrap(|| {
+                let abs_path = self.root_path.join(path);
+                let prev_query_len = query.len();
+                query += &fs::read_to_string(&abs_path).map_err(Error::wrap(|| {
                     format!("Failed to read query file {:?}", path)
                 }))?;
+                path_ranges.push((path.clone(), prev_query_len..query.len()));
             }
-            Ok(query)
         } else {
             let queries_path = self.root_path.join("queries");
             let path = queries_path.join(default_path);
             if path.exists() {
-                fs::read_to_string(&path).map_err(Error::wrap(|| {
+                query = fs::read_to_string(&path).map_err(Error::wrap(|| {
                     format!("Failed to read query file {:?}", path)
-                }))
-            } else {
-                Ok(String::new())
+                }))?;
+                path_ranges.push((default_path.to_string(), 0..query.len()));
             }
         }
+
+        Ok((query, path_ranges))
     }
 }
 
