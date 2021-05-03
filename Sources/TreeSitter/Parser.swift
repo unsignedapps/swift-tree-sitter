@@ -110,6 +110,8 @@ public class Parser {
         return Tree(rawValue: tree)
     }
 
+    #if canImport(Combine)
+
     /// Use the parser to parse a source code string
     ///
     /// - Important: This call is **asynchronous** and happens on a background thread.
@@ -147,6 +149,8 @@ public class Parser {
             .subscribe(on: DispatchQueue(label: "com.unsignedapps.tree-sitter.parse-queue"))
             .eraseToAnyPublisher()
     }
+
+    #endif
 
     /// Instruct the parser to start the next parse from the beginning.
     ///
