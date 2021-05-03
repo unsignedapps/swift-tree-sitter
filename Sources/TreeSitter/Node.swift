@@ -260,7 +260,7 @@ public struct NodeCollection: Sequence, IteratorProtocol, Collection, RandomAcce
         self.namedOnly = namedOnly
 
         let count = namedOnly ? ts_node_named_child_count(parent.rawValue) : ts_node_child_count(parent.rawValue)
-        self.endIndex = Int(count) - 1
+        self.endIndex = Int(count)
     }
 
     public subscript(position: Int) -> Node {
