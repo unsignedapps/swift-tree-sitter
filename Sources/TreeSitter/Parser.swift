@@ -103,8 +103,24 @@ public class Parser {
     ///
     public func parseSync (string: String, encoding: InputEncoding = .utf8, oldTree: Tree? = nil) throws -> Tree {
         guard self.language != nil else { throw Error.noLanguage }
+        let data: Data?
+        switch encoding {
+        case .utf8:             data = string.data(using: .utf8)
+        case .utf16:            data = string.data(using: .utf16)
+        }
+        guard let data else { throw Error.couldNotConvertToData }
 
-        guard let tree = ts_parser_parse_string_encoding(self.rawValue, oldTree?.rawValue, string, UInt32(string.count), encoding.rawValue) else {
+        let dataLength = data.count
+
+        let tree = data.withUnsafeBytes({ (byteBuffer) -> OpaquePointer? in
+            guard let ptr = byteBuffer.baseAddress?.bindMemory(to: Int8.self, capacity: dataLength) else {
+                return nil
+            }
+
+            return ts_parser_parse_string_encoding(rawValue, nil, ptr, UInt32(dataLength), encoding.rawValue)
+        })
+
+        guard let tree else {
             throw self.isCancelled ? Error.cancelled : Error.timedout
         }
         return Tree(rawValue: tree)
@@ -193,6 +209,7 @@ public class Parser {
 extension Parser {
     enum Error: Swift.Error {
         case noLanguage
+        case couldNotConvertToData
         case languageVersionMismatch (Language)
         case timedout
         case cancelled
